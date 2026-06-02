@@ -1,0 +1,10 @@
+master:
+  steps:
+    - trigger_services:
+        project: home:Yvan-56
+        package: rawproc
+  filters:
+    event: push
+    branches:
+      only:
+        - master
