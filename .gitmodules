@@ -1,0 +1,3 @@
+[submodule "external/exiv2"]
+	path = external/exiv2
+	url = https://github.com/Exiv2/exiv2.git
