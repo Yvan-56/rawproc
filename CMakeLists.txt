@@ -16,6 +16,8 @@ string(TIMESTAMP BUILDDATE)
 
 add_compile_options(-ggdb -DVERSION="${CMAKE_PROJECT_VERSION}"  -DBUILDDATE="${BUILDDATE}")
 
+add_executable(rawproc src/rawprocApp.cpp ) #$<TARGET_OBJECTS:gimage> $<TARGET_OBJECTS:gimage_proc> $<TARGET_OBJECTS:util>)
+
 # 2026-06-09 - first eviv2 compilation as submodule, errors with gimage otherwise
 
 #exiv2:
@@ -108,7 +110,6 @@ endif()
 
 # end of exiv2 section
 
-add_executable(rawproc src/rawprocApp.cpp ) #$<TARGET_OBJECTS:gimage> $<TARGET_OBJECTS:gimage_proc> $<TARGET_OBJECTS:util>)
 add_executable(img src/img.cpp ) #$<TARGET_OBJECTS:gimage> $<TARGET_OBJECTS:gimage_proc> $<TARGET_OBJECTS:util>)
 add_executable(wxcmd src/wxcmd.cpp)
 add_executable(exif src/exif.cpp ) #$<TARGET_OBJECTS:gimage> $<TARGET_OBJECTS:util>)
