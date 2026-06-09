@@ -16,6 +16,98 @@ string(TIMESTAMP BUILDDATE)
 
 add_compile_options(-ggdb -DVERSION="${CMAKE_PROJECT_VERSION}"  -DBUILDDATE="${BUILDDATE}")
 
+# 2026-06-09 - first eviv2 compilation as submodule, errors with gimage otherwise
+
+#exiv2:
+#Github repo, cmake, install in-tree to resolve .in header creation
+#set(EXIV2_DEPS "-lintl -liconv -lcrypto -lssl -lz")  # expat gettext mman-win32 zlib
+#if (WIN32)
+#	string(CONCAT EXIV2_DEPS "-lws2_32 -lpsapi")
+#endif()
+if  (DEFINED BUILD_EXIV2)
+	if (DEFINED HOST)
+		set(CMAKECMD "${HOST}-cmake")
+	else()
+		set(CMAKECMD "cmake")
+	endif()
+	set(CMAKE_ARGUMENTS -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DEXIV2_ENABLE_XMP=OFF -DEXIV2_ENABLE_PNG=OFF -DEXIV2_ENABLE_NLS=OFF -DEXIV2_ENABLE_PRINTUCS2=OFF -DEXIV2_BUILD_SAMPLES=OFF -DEXIV2_BUILD_EXIV2_COMMAND=OFF -DCMAKE_INSTALL_PREFIX:PATH=${BUILD_PREFIX})
+	
+	include(ExternalProject)
+	if (BUILD_EXIV2 STREQUAL "GITHUB")
+		message(STATUS "Configuring exiv2 0.27.7 as an external project (GitHub clone).")
+		ExternalProject_Add(exiv2_download
+			PREFIX external/exiv2
+			GIT_REPOSITORY    https://github.com/Exiv2/exiv2.git
+			GIT_TAG           3c648b #v0.27.7, rawproc can't do 0.28 yet...
+			GIT_PROGRESS      ON
+			CMAKE_COMMAND	${CMAKECMD}
+			CMAKE_ARGS   ${CMAKE_ARGUMENTS}
+			INSTALL_COMMAND make install
+			UPDATE_COMMAND ""
+		)
+	elseif (BUILD_EXIV2 STREQUAL "SRCPKG")
+		message(STATUS "Configuring exiv2 0.27.7 as an external project (URL download).")
+		ExternalProject_Add(exiv2_download
+			PREFIX external/exiv2
+			#DOWNLOAD_DIR "external"
+			URL https://github.com/Exiv2/exiv2/releases/download/v0.27.7/exiv2-0.27.7-Source.tar.gz
+			CMAKE_COMMAND	${CMAKECMD}
+			CMAKE_ARGS   ${CMAKE_ARGUMENTS}
+			INSTALL_COMMAND make install
+			UPDATE_COMMAND ""
+			#DOWNLOAD_EXTRACT_TIMESTAMP true
+		)
+	elseif (EXISTS ${BUILD_EXIV2})
+		message(STATUS "Configuring exiv2 0.27.7 as an external project (local file: ${BUILD_EXIV2}).")
+		ExternalProject_Add(exiv2_download
+			PREFIX external/exiv2
+			#DOWNLOAD_DIR "external"
+			URL "${BUILD_EXIV2}"
+			CMAKE_COMMAND	${CMAKECMD}
+			CMAKE_ARGS    ${CMAKE_ARGUMENTS}
+			INSTALL_COMMAND make install
+			UPDATE_COMMAND ""
+			#DOWNLOAD_EXTRACT_TIMESTAMP true
+		)
+	else ()
+		message(FATAL_ERROR "BUILD_EXIV2 not valid: ${BUILD_EXIV2} (Either GITHUB, SRCPKG, or valid local path/srcpackage")
+	endif()
+	
+	set(EXIV2_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/usr/include)
+	set(EXIV2_LIB_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/usr/lib)
+	set(EXIV2_LIB ${CMAKE_CURRENT_BINARY_DIR}/external/usr/lib/libexiv2.a)
+	
+	add_library(exiv2 STATIC IMPORTED)
+	set_target_properties(exiv2 PROPERTIES IMPORTED_LOCATION ${EXIV2_LIB_DIR}/libexiv2.a)
+	set(EXIV2_FOUND TRUE)
+	add_dependencies(rawproc exiv2_download)
+	
+	target_include_directories(rawproc PRIVATE ${EXIV2_INCLUDE_DIR})
+	target_include_directories(img PRIVATE ${EXIV2_INCLUDE_DIR})
+	target_include_directories(exif PRIVATE ${EXIV2_INCLUDE_DIR})
+	target_link_libraries(rawproc ${EXIV2_LIB} ${EXIV2_DEPS})
+	target_link_libraries(img  ${EXIV2_LIB} ${EXIV2_DEPS})
+	target_link_libraries(exif  ${EXIV2_LIB} ${EXIV2_DEPS})
+	
+	#for 0.27, take out if code upgraded to 0.28
+	target_compile_options(rawproc PRIVATE -Wno-deprecated-declarations)
+	target_compile_options(img PRIVATE -Wno-deprecated-declarations)
+	target_compile_options(exif PRIVATE -Wno-deprecated-declarations)
+	
+else()
+	pkg_check_modules(EXIV2 REQUIRED exiv2)
+	if (EXIV2_FOUND)
+		include_directories(${EXIV2_INCLUDE_DIR})
+		target_link_libraries(rawproc ${EXIV2_LIBRARIES} ${EXIV2_DEPS})
+		target_link_libraries(img ${EXIV2_LIBRARIES}  ${EXIV2_DEPS})
+		target_link_libraries(exif ${EXIV2_LIBRARIES}  ${EXIV2_DEPS})
+	else()
+		message(STATUS "exiv2 not found")
+	endif(EXIV2_FOUND)
+endif()
+
+# end of exiv2 section
+
 add_executable(rawproc src/rawprocApp.cpp ) #$<TARGET_OBJECTS:gimage> $<TARGET_OBJECTS:gimage_proc> $<TARGET_OBJECTS:util>)
 add_executable(img src/img.cpp ) #$<TARGET_OBJECTS:gimage> $<TARGET_OBJECTS:gimage_proc> $<TARGET_OBJECTS:util>)
 add_executable(wxcmd src/wxcmd.cpp)
@@ -365,96 +457,6 @@ else()
 		message(STATUS "lensfun not found")
 	endif(LENSFUN_FOUND)
 endif ()
-
-
-#exiv2:
-#Github repo, cmake, install in-tree to resolve .in header creation
-#set(EXIV2_DEPS "-lintl -liconv -lcrypto -lssl -lz")  # expat gettext mman-win32 zlib
-#if (WIN32)
-#	string(CONCAT EXIV2_DEPS "-lws2_32 -lpsapi")
-#endif()
-if  (DEFINED BUILD_EXIV2)
-	if (DEFINED HOST)
-		set(CMAKECMD "${HOST}-cmake")
-	else()
-		set(CMAKECMD "cmake")
-	endif()
-	set(CMAKE_ARGUMENTS -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DEXIV2_ENABLE_XMP=OFF -DEXIV2_ENABLE_PNG=OFF -DEXIV2_ENABLE_NLS=OFF -DEXIV2_ENABLE_PRINTUCS2=OFF -DEXIV2_BUILD_SAMPLES=OFF -DEXIV2_BUILD_EXIV2_COMMAND=OFF -DCMAKE_INSTALL_PREFIX:PATH=${BUILD_PREFIX})
-	
-	include(ExternalProject)
-	if (BUILD_EXIV2 STREQUAL "GITHUB")
-		message(STATUS "Configuring exiv2 0.27.7 as an external project (GitHub clone).")
-		ExternalProject_Add(exiv2_download
-			PREFIX external/exiv2
-			GIT_REPOSITORY    https://github.com/Exiv2/exiv2.git
-			GIT_TAG           3c648b #v0.27.7, rawproc can't do 0.28 yet...
-			GIT_PROGRESS      ON
-			CMAKE_COMMAND	${CMAKECMD}
-			CMAKE_ARGS   ${CMAKE_ARGUMENTS}
-			INSTALL_COMMAND make install
-			UPDATE_COMMAND ""
-		)
-	elseif (BUILD_EXIV2 STREQUAL "SRCPKG")
-		message(STATUS "Configuring exiv2 0.27.7 as an external project (URL download).")
-		ExternalProject_Add(exiv2_download
-			PREFIX external/exiv2
-			#DOWNLOAD_DIR "external"
-			URL https://github.com/Exiv2/exiv2/releases/download/v0.27.7/exiv2-0.27.7-Source.tar.gz
-			CMAKE_COMMAND	${CMAKECMD}
-			CMAKE_ARGS   ${CMAKE_ARGUMENTS}
-			INSTALL_COMMAND make install
-			UPDATE_COMMAND ""
-			#DOWNLOAD_EXTRACT_TIMESTAMP true
-		)
-	elseif (EXISTS ${BUILD_EXIV2})
-		message(STATUS "Configuring exiv2 0.27.7 as an external project (local file: ${BUILD_EXIV2}).")
-		ExternalProject_Add(exiv2_download
-			PREFIX external/exiv2
-			#DOWNLOAD_DIR "external"
-			URL "${BUILD_EXIV2}"
-			CMAKE_COMMAND	${CMAKECMD}
-			CMAKE_ARGS    ${CMAKE_ARGUMENTS}
-			INSTALL_COMMAND make install
-			UPDATE_COMMAND ""
-			#DOWNLOAD_EXTRACT_TIMESTAMP true
-		)
-	else ()
-		message(FATAL_ERROR "BUILD_EXIV2 not valid: ${BUILD_EXIV2} (Either GITHUB, SRCPKG, or valid local path/srcpackage")
-	endif()
-	
-	set(EXIV2_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/usr/include)
-	set(EXIV2_LIB_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/usr/lib)
-	set(EXIV2_LIB ${CMAKE_CURRENT_BINARY_DIR}/external/usr/lib/libexiv2.a)
-	
-	add_library(exiv2 STATIC IMPORTED)
-	set_target_properties(exiv2 PROPERTIES IMPORTED_LOCATION ${EXIV2_LIB_DIR}/libexiv2.a)
-	set(EXIV2_FOUND TRUE)
-	add_dependencies(rawproc exiv2_download)
-	
-	target_include_directories(rawproc PRIVATE ${EXIV2_INCLUDE_DIR})
-	target_include_directories(img PRIVATE ${EXIV2_INCLUDE_DIR})
-	target_include_directories(exif PRIVATE ${EXIV2_INCLUDE_DIR})
-	target_link_libraries(rawproc ${EXIV2_LIB} ${EXIV2_DEPS})
-	target_link_libraries(img  ${EXIV2_LIB} ${EXIV2_DEPS})
-	target_link_libraries(exif  ${EXIV2_LIB} ${EXIV2_DEPS})
-	
-	#for 0.27, take out if code upgraded to 0.28
-	target_compile_options(rawproc PRIVATE -Wno-deprecated-declarations)
-	target_compile_options(img PRIVATE -Wno-deprecated-declarations)
-	target_compile_options(exif PRIVATE -Wno-deprecated-declarations)
-	
-else()
-	pkg_check_modules(EXIV2 REQUIRED exiv2)
-	if (EXIV2_FOUND)
-		include_directories(${EXIV2_INCLUDE_DIR})
-		target_link_libraries(rawproc ${EXIV2_LIBRARIES} ${EXIV2_DEPS})
-		target_link_libraries(img ${EXIV2_LIBRARIES}  ${EXIV2_DEPS})
-		target_link_libraries(exif ${EXIV2_LIBRARIES}  ${EXIV2_DEPS})
-	else()
-		message(STATUS "exiv2 not found")
-	endif(EXIV2_FOUND)
-endif()
-
 
 #Optional Features:
 
