@@ -21,7 +21,7 @@ bool _checkTIFF(const char *filename)
 	return false;
 }
 
-/*
+
 bool _loadTIFFInfo(const char *filename, unsigned *width, unsigned *height, unsigned *numcolors, unsigned *numbits, std::map<std::string,std::string> &info)
 {
 	char *img, *buf;
@@ -75,7 +75,7 @@ bool _loadTIFFInfo(const char *filename, unsigned *width, unsigned *height, unsi
 	}
 	else return false;
 }
-*/
+
 
 char * _loadTIFF(const char *filename, unsigned *width, unsigned *height, unsigned *numcolors, unsigned *numbits, std::map<std::string,std::string> &info, std::string params="", char ** icc_m=NULL, unsigned  *icclength=0)
 {
@@ -100,39 +100,39 @@ char * _loadTIFF(const char *filename, unsigned *width, unsigned *height, unsign
         
 		TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &w);
 		TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &h);
-		TIFFGetField(tif, TIFFTAG_SAMPLESPERPIXEL, &c);
 		TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &b);
+		TIFFGetField(tif, TIFFTAG_SAMPLESPERPIXEL, &c);
 		TIFFGetField(tif, TIFFTAG_PLANARCONFIG, &config);
 		
 		if (config != PLANARCONFIG_CONTIG) return NULL;
 
 		char *infobuf;
-		//if (TIFFGetField(tif, TIFFTAG_ARTIST, &infobuf)) info["Artist"]=infobuf; 
-		//if (TIFFGetField(tif, TIFFTAG_MAKE, &infobuf))  info["Make"]=infobuf;
-		//if (TIFFGetField(tif, TIFFTAG_MODEL, &infobuf))  info["Model"]=infobuf;
-		//if (TIFFGetField(tif, TIFFTAG_SOFTWARE, &infobuf))  info["Software"]=infobuf; 
-		//if (TIFFGetField(tif, TIFFTAG_COPYRIGHT, &infobuf))  info["Copyright"]=infobuf; 
-		//if (TIFFGetField(tif, TIFFTAG_LENSINFO, &infobuf))  info["LensInfo"]=infobuf; 
-		//if (TIFFGetField(tif, TIFFTAG_IMAGEDESCRIPTION, &infobuf))  info["ImageDescription"]=infobuf; 
-		//if (TIFFGetField(tif, TIFFTAG_DATETIME, &infobuf)) info["DateTime"]=infobuf;
-		//if (TIFFGetField(tif, TIFFTAG_SAMPLEFORMAT, &sampleformat)) {
-		//	if (sampleformat == SAMPLEFORMAT_UINT) info["SampleFormat"]="uint";
-		//	if (sampleformat == SAMPLEFORMAT_INT) info["SampleFormat"]="int";
-		//	if (sampleformat == SAMPLEFORMAT_IEEEFP) info["SampleFormat"]="float";
-		//	if (sampleformat == SAMPLEFORMAT_VOID) info["SampleFormat"]="void";
-		//}
-		//if (TIFFGetField(tif, TIFFTAG_ORIENTATION, &uval)) info["Orientation"]=tostr(uval);
-/*
+		if (TIFFGetField(tif, TIFFTAG_ARTIST, &infobuf)) info["Artist"]=infobuf; 
+		if (TIFFGetField(tif, TIFFTAG_MAKE, &infobuf))  info["Make"]=infobuf;
+		if (TIFFGetField(tif, TIFFTAG_MODEL, &infobuf))  info["Model"]=infobuf;
+		if (TIFFGetField(tif, TIFFTAG_SOFTWARE, &infobuf))  info["Software"]=infobuf; 
+		if (TIFFGetField(tif, TIFFTAG_COPYRIGHT, &infobuf))  info["Copyright"]=infobuf; 
+		if (TIFFGetField(tif, TIFFTAG_LENSINFO, &infobuf))  info["LensInfo"]=infobuf; 
+		if (TIFFGetField(tif, TIFFTAG_IMAGEDESCRIPTION, &infobuf))  info["ImageDescription"]=infobuf; 
+		if (TIFFGetField(tif, TIFFTAG_DATETIME, &infobuf)) info["DateTime"]=infobuf;
+		if (TIFFGetField(tif, TIFFTAG_SAMPLEFORMAT, &sampleformat)) {
+			if (sampleformat == SAMPLEFORMAT_UINT) info["SampleFormat"]="uint";
+			if (sampleformat == SAMPLEFORMAT_INT) info["SampleFormat"]="int";
+			if (sampleformat == SAMPLEFORMAT_IEEEFP) info["SampleFormat"]="float";
+			if (sampleformat == SAMPLEFORMAT_VOID) info["SampleFormat"]="void";
+		}
+		if (TIFFGetField(tif, TIFFTAG_ORIENTATION, &uval)) info["Orientation"]=tostr(uval);
+
 		if (TIFFGetField(tif, TIFFTAG_ICCPROFILE, &len, &buffer)) {
 			*icc_m = new char[len];
 			memcpy(*icc_m, buffer, len);
 			*icclength = len;
 		}
-*/
-//		else {
+
+		else {
 			*icc_m = NULL;
 			*icclength = 0;
-//		}
+		}
 		
 		img = new char[w*h*c*(b/8)];
 		buf = (char *) _TIFFmalloc(TIFFScanlineSize(tif));
@@ -145,7 +145,6 @@ char * _loadTIFF(const char *filename, unsigned *width, unsigned *height, unsign
 			dst += stride;
 		}
 		
-/*
 		uint32_t read_dir_offset; uint32_t count;
 		float fval;
 		uint16_t * sval;
@@ -156,9 +155,8 @@ char * _loadTIFF(const char *filename, unsigned *width, unsigned *height, unsign
 				if (TIFFGetField( tif, EXIFTAG_FOCALLENGTH, &fval)) info["FocalLength"] = tostr(fval);
 				if (TIFFGetField( tif, EXIFTAG_ISOSPEEDRATINGS, &count, &sval)) info["ISOSpeedRatings"] = tostr(*sval);
 			}
-			else printf("TIFFReadEXIFDirectory failed\n");
+			else printf("TIFFReadEXIFDirectory failed\n"); fflush(stdout);
 		}
-*/
 		
 		*width = w;
 		*height = h;
@@ -201,20 +199,20 @@ bool _writeTIFF(const char *filename, char *imagedata, unsigned width, unsigned 
 		// We set the strip size of the file to be size of one row of pixels
 		TIFFSetField(tif, TIFFTAG_ROWSPERSTRIP, TIFFDefaultStripSize(tif, width*numcolors));
 
-		//if (info.find("Artist") != info.end())  TIFFSetField(tif, TIFFTAG_ARTIST, info["Artist"].c_str());
-		//if (info.find("Make") != info.end())  TIFFSetField(tif, TIFFTAG_MAKE, info["Make"].c_str());
-		//if (info.find("Model") != info.end())  TIFFSetField(tif, TIFFTAG_MODEL, info["Model"].c_str());
-		//if (info.find("Software") != info.end())  TIFFSetField(tif, TIFFTAG_SOFTWARE, info["Software"].c_str());
-		//if (info.find("Copyright") != info.end())  TIFFSetField(tif, TIFFTAG_COPYRIGHT, info["Copyright"].c_str());
-		//if (info.find("LensInfo") != info.end())  TIFFSetField(tif, TIFFTAG_LENSINFO, info["LensInfo"].c_str());
-		//if (info.find("DateTime") != info.end()) TIFFSetField(tif, TIFFTAG_DATETIME, info["DateTime"].c_str());
-		//if (info.find("ImageDescription") != info.end())  TIFFSetField(tif, TIFFTAG_IMAGEDESCRIPTION, info["ImageDescription"].c_str());
-		//if (info.find("Orientation") != info.end()) {
-		//	uint16_t orient = (uint16_t) atoi(info["Orientation"].c_str());
-		//	TIFFSetField(tif, TIFFTAG_ORIENTATION, 1, &orient);
-		//}
+		if (info.find("Artist") != info.end())  TIFFSetField(tif, TIFFTAG_ARTIST, info["Artist"].c_str());
+		if (info.find("Make") != info.end())  TIFFSetField(tif, TIFFTAG_MAKE, info["Make"].c_str());
+		if (info.find("Model") != info.end())  TIFFSetField(tif, TIFFTAG_MODEL, info["Model"].c_str());
+		if (info.find("Software") != info.end())  TIFFSetField(tif, TIFFTAG_SOFTWARE, info["Software"].c_str());
+		if (info.find("Copyright") != info.end())  TIFFSetField(tif, TIFFTAG_COPYRIGHT, info["Copyright"].c_str());
+		if (info.find("LensInfo") != info.end())  TIFFSetField(tif, TIFFTAG_LENSINFO, info["LensInfo"].c_str());
+		if (info.find("DateTime") != info.end()) TIFFSetField(tif, TIFFTAG_DATETIME, info["DateTime"].c_str());
+		if (info.find("ImageDescription") != info.end())  TIFFSetField(tif, TIFFTAG_IMAGEDESCRIPTION, info["ImageDescription"].c_str());
+		if (info.find("Orientation") != info.end()) {
+			uint16_t orient = (uint16_t) atoi(info["Orientation"].c_str());
+			TIFFSetField(tif, TIFFTAG_ORIENTATION, 1, &orient);
+		}
 
-		//if (iccprofile) TIFFSetField(tif, TIFFTAG_ICCPROFILE, iccprofilelength, iccprofile);
+		if (iccprofile) TIFFSetField(tif, TIFFTAG_ICCPROFILE, iccprofilelength, iccprofile);
 				
 		unsigned scanlinesize = TIFFScanlineSize(tif);
 		buf = (unsigned char *) _TIFFmalloc(scanlinesize);
@@ -231,6 +229,37 @@ bool _writeTIFF(const char *filename, char *imagedata, unsigned width, unsigned 
 			img+=scanlinesize;
 		}
 
+		//Following code for writing the photo EXIF values comes from https://libtiff.gitlab.io/libtiff/functions/TIFFCustomDirectory.html
+
+		//Set the tag for the custom directory with a “dummy” value in order to get the tag reserved. 
+		uint64_t exif_offset = 0;
+		TIFFSetField(tif, TIFFTAG_GPSIFD, exif_offset);  //saves a place in the file for the exif_offset
+		
+		//Save current TIFF-directory to file. Otherwise, it will be lost. Remember also the number of the current directory:
+		TIFFWriteDirectory(tif);  //write what's already been added...
+		uint64_t dirNum = TIFFCurrentDirectory(tif);  //..and save the directory number for later
+		
+		//Create the EXIF TIFF-directory and set its fields.
+		if (TIFFCreateEXIFDirectory(tif) == 0) {
+			TIFFSetField(tif, EXIFTAG_EXPOSURETIME, atof(info["ExposureTime"].c_str()));
+			TIFFSetField(tif, EXIFTAG_FNUMBER, atof(info["FNumber"].c_str()));
+			uint16_t iso_list[1] = { (uint16_t) atoi(info["ISOSpeedRatings"].c_str()) };
+			TIFFSetField(tif, EXIFTAG_ISOSPEEDRATINGS, 1, iso_list);
+			TIFFSetField(tif, EXIFTAG_FOCALLENGTH, atof(info["FocalLength"].c_str()));
+		}
+		
+		//Write custom directory to file. The offset to that directory in the file is returned in exif_offset.
+		if (TIFFWriteCustomDirectory(tif, &exif_offset) != 1) {
+			printf("Failed to write EXIF directory data."); fflush(stdout);
+			TIFFClose(tif);
+			return 1;
+		}
+		
+		//Reload the first directory (i.e. the original TIFF directory). Apparently, this reads the data back from file.
+		TIFFSetDirectory(tif, dirNum);
+		
+		//Set the correct offset value of the custom directory IFD tag and save those changes to file.
+		TIFFSetField(tif, TIFFTAG_EXIFIFD, exif_offset);
 		TIFFWriteDirectory( tif );
 
 		(void) TIFFClose(tif);

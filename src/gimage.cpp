@@ -18,7 +18,7 @@
 #include "strutil.h"
 #include "fileutil.h"
 #include "cJSON.h"
-#include "exiv2/exiv2.hpp"
+//#include "exiv2/exiv2.hpp"
 #ifdef USE_LIBRTPROCESS
 #include <rtprocess/librtprocess.h>
 #endif
@@ -31,6 +31,8 @@
 
 #ifdef WIN32
 #include <windows.h>
+
+
 
 //https://stackoverflow.com/questions/7063859/c-popen-command-without-console/59523254#59523254
 int runCmd(const char* cmd, std::string& outOutput) {
@@ -1079,9 +1081,21 @@ std::string gImage::getProfilePath()
 	return profilepath;
 }
 
+
 std::map<std::string,std::string> gImage::getInfo(const char * filename)
 {
-	return loadMetadata(filename);
+	//return loadMetadata(filename);
+	unsigned width, height, colors, bpp, icclength;
+	char * iccprofile;
+	std::map<std::string, std::string> imgdata;
+	GIMAGE_FILETYPE ftype = gImage::getFileType(filename);
+	
+	if (ftype == FILETYPE_TIFF) _loadTIFFInfo(filename, &width, &height, &colors, &bpp, imgdata);
+	if (ftype == FILETYPE_RAW) _loadRAWInfo(filename, &width, &height, &colors, &bpp, imgdata);
+	if (ftype == FILETYPE_JPEG) _loadJPEGInfo(filename, &width, &height, &colors, imgdata);
+	if (ftype == FILETYPE_PNG) _loadPNGInfo(filename, &width, &height, &colors, &bpp, imgdata);
+
+	return imgdata;
 }
 
 //Check the file type of an existing image file; is it suitable for opening?
@@ -1156,9 +1170,9 @@ std::string gImage::LibraryVersions()
 	s << " (w/fastfloat)";
 #endif
 	verstring.append(s.str());
-	verstring.append("\nExiv2: ");
-	verstring.append(Exiv2::versionString());
-	//verstring.append("\n");
+	//verstring.append("\nExiv2: ");
+	//verstring.append(Exiv2::versionString());
+	verstring.append("\n");
 	return verstring;
 
 }
@@ -4016,10 +4030,13 @@ bool gImage::ApplyHLRecover(int threadcount)
 	float ** blue = RT_malloc(w, h);
 
 	float chmax[3] = {0.0, 0.0, 0.0};
+	float rw = 0; float gw = 0; float bw = 0;
+	float rb = 65535.f; float gb = 65535.f; float bb = 65535.f;
 
 	#pragma omp parallel num_threads(threadcount)
 	{
 		float ra = 0; float ga = 0; float ba = 0;
+		
 	
 		#pragma omp for 
 		for (unsigned y=0; y<h; y++) {
@@ -4032,6 +4049,14 @@ bool gImage::ApplyHLRecover(int threadcount)
 				if (ra < red[y][x])   ra = red[y][x];
 				if (ga < green[y][x]) ga = green[y][x];
 				if (ba < blue[y][x])  ba = blue[y][x];
+				
+				if (rb < red[y][x]) rb = red[y][x];
+				if (gb < green[y][x]) gb = green[y][x];
+				if (bb < blue[y][x]) bb = blue[y][x];
+				
+				if (rw < red[y][x]) rw = red[y][x];
+				if (gw < green[y][x]) gw = green[y][x];
+				if (bw < blue[y][x]) bw = blue[y][x];
 			}
 		}
 
@@ -4048,11 +4073,12 @@ bool gImage::ApplyHLRecover(int threadcount)
 	//float clippoint = atof(getInfoValue("Libraw.Maximum").c_str()) / 65536.0;
 	float clippoint = 65535.0;
 	if (camwb.size() >= 3) {
-		clmax[0] = clippoint * atof(camwb[0].c_str());
-		clmax[1] = clippoint * atof(camwb[1].c_str());
-		clmax[2] = clippoint * atof(camwb[2].c_str());
+		clmax[0] = (rw - rb) * atof(camwb[0].c_str());
+		clmax[1] = (gw - gb) * atof(camwb[1].c_str());
+		clmax[2] = (bw - bb) * atof(camwb[2].c_str());
 	}
 	else return false;
+	
 
 	//printf("chmax[0]:%f chmax[1]:%f chmax[2]:%f\nclmax[0]:%f clmax[1]:%f clmax[2]:%f\n\n",chmax[0],chmax[1],chmax[2],clmax[0],clmax[1],clmax[2]); fflush(stdout);
 
@@ -5536,7 +5562,7 @@ int gImage::lensfunAvailableModifications(lfDatabase * ldb, std::string camera, 
 
 GIMAGE_ERROR gImage::ApplyLensCorrection(lfDatabase * ldb, int modops, LENS_GEOMETRY geometry, RESIZE_FILTER algo,  int threadcount, std::string camera, std::string lens)
 {
-	//printf("gImage::ApplyLensCorrection: %s\n", Stats().c_str());  fflush(stdout);
+	Stats();  //????????  Seems to block something with enough delay to allow image to be processed the first time...
 	if (ldb == NULL) {
 		return GIMAGE_LF_NO_DATABASE;
 	}
@@ -5680,7 +5706,7 @@ GIMAGE_ERROR gImage::ApplyLensCorrection(lfDatabase * ldb, int modops, LENS_GEOM
 		}
 	
 		if (ModifyFlags & LF_MODIFY_TCA) {  //#3
-			printf("gImage::ApplyLensCorrection: TCA (%d,%d)\n", w, h);  fflush(stdout);
+			//printf("gImage::ApplyLensCorrection: TCA (%d,%d)\n", w, h);  fflush(stdout);
 			gImage olddib(*this);
 			pix * newimg = getImageDataRaw();
 			bool ok = true;
@@ -6820,7 +6846,7 @@ std::vector<long> gImage::Histogram(unsigned channel, unsigned &hmax)
 	return hdata;
 }
 
-
+/*
 //Exiv2 Metadata handlers:
 
 //This is the tag list rawproc will read from and write to JPEGs, TIFFs, and PNGs
@@ -6920,7 +6946,7 @@ GIMAGE_ERROR gImage::insertMetadata(std::string filename, cmsHPROFILE profile, b
 	try {
 		image->writeMetadata();
 	}
-	catch (Exiv2::AnyError& e) {
+	catch (Exiv2::Error& e) {
 		return GIMAGE_EXIV2_METADATAWRITE_FAILED;
 	}
 
@@ -6971,13 +6997,14 @@ std::map<std::string,std::string> gImage::loadMetadata(const char * filename)
 			}
 		}
 	}
-	catch (Exiv2::AnyError& e) {
+	catch (Exiv2::Error& e) {
 		imgdata["Error"] = "Metadata read failure.";
 		return imgdata;
 	}
 	
 	return imgdata;
 }
+
 
 //loads metadata from a file into the gImage instance:
 GIMAGE_ERROR gImage::getMetadata(std::string filename)
@@ -7004,12 +7031,13 @@ GIMAGE_ERROR gImage::getMetadata(std::string filename)
 	char * prof;
 	if (image->iccProfileDefined()) {
 		prof = new char[image->iccProfile()->size_]; 
-		memcpy(prof, image->iccProfile()->pData_, image->iccProfile()->size_);
+		memcpy(prof, (const void *) &image->iccProfile()->pData_, image->iccProfile()->size_);
 		setProfile(prof, image->iccProfile()->size_);
 	}
 
 	return GIMAGE_OK;
 }
+*/
 
 GIMAGE_ERROR gImage::loadLensCorrectionMetadata(std::string filename)
 {
@@ -7060,27 +7088,27 @@ GIMAGE_ERROR gImage::loadLensCorrectionMetadata(std::string filename)
 
 gImage gImage::loadImageFile(const char * filename, std::string params)
 {
-	gImage image;
+	//gImage image;
 	GIMAGE_FILETYPE ext = gImage::getFileType(filename);
 
 	if (ext == FILETYPE_TIFF) {
-		image = gImage::loadTIFF(filename, params);
-		if (image.getWidth() != 0) image.getMetadata(filename);
+		gImage image = gImage::loadTIFF(filename, params);
+		//if (image.getWidth() != 0) image.getMetadata(filename);
 		return image;
 	}
 	else if (ext == FILETYPE_JPEG) {
-		image = gImage::loadJPEG(filename, params);
-		if (image.getWidth() != 0) image.getMetadata(filename);
+		gImage image = gImage::loadJPEG(filename, params);
+		//if (image.getWidth() != 0) image.getMetadata(filename);
 		return image;
 	}
 	else if (ext == FILETYPE_PNG) {
-		image = gImage::loadPNG(filename, params);
-		if (image.getWidth() != 0) image.getMetadata(filename);
+		gImage image = gImage::loadPNG(filename, params);
+		//if (image.getWidth() != 0) image.getMetadata(filename);
 		return image;
 	}
 	else {
-		image = gImage::loadRAW(filename, params);
-		if (image.getWidth() != 0) image.getMetadata(filename);
+		gImage image = gImage::loadRAW(filename, params);
+		//if (image.getWidth() != 0) image.getMetadata(filename);
 		return image;
 	}
 }
@@ -7219,21 +7247,21 @@ GIMAGE_ERROR gImage::saveImageFile(const char * filename, std::string params, cm
 	//if a profile was passed in params, convert to it, otherwise save with the assigned profile
 	if (ftype == FILETYPE_TIFF) {
 		if (profile)
-			result = saveTIFF(tempfile.c_str(), bitfmt, params, profile, intent); //saveTIFF will convert image to the specified profile
+			result = saveTIFF(filename, bitfmt, params, profile, intent); //saveTIFF will convert image to the specified profile
 		else
-			result = saveTIFF(tempfile.c_str(), bitfmt, params);//saveTIFF will save the image in the assigned profile (if one is assigned...)
+			result = saveTIFF(filename, bitfmt, params);//saveTIFF will save the image in the assigned profile (if one is assigned...)
 	}
 	else if (ftype == FILETYPE_JPEG) {
 		if (profile)
-			result = saveJPEG(tempfile.c_str(), bitfmt, params, profile, intent);
+			result = saveJPEG(filename, bitfmt, params, profile, intent);
 		else
-			result = saveJPEG(tempfile.c_str(), bitfmt, params);
+			result = saveJPEG(filename, bitfmt, params);
 	}
 	else if (ftype == FILETYPE_PNG) {
 		if (profile)
-			result = savePNG(tempfile.c_str(), bitfmt, params, profile, intent);
+			result = savePNG(filename, bitfmt, params, profile, intent);
 		else
-			result = savePNG(tempfile.c_str(), bitfmt, params);
+			result = savePNG(filename, bitfmt, params);
 	}
 	else if (ftype == FILETYPE_DATA) {
 		return saveData(filename, bitfmt, params);
@@ -7252,6 +7280,7 @@ GIMAGE_ERROR gImage::saveImageFile(const char * filename, std::string params, cm
 		
 	if (saveprofile == NULL) excludeicc = true;
 	
+	/*
 	if (ftype != FILETYPE_DATA && result == GIMAGE_OK) { 
 		if (excludeexif & excludeicc) //neither
 			result = insertMetadata(tempfile, NULL, true);
@@ -7266,11 +7295,13 @@ GIMAGE_ERROR gImage::saveImageFile(const char * filename, std::string params, cm
 		lasterror = GIMAGE_UNSUPPORTED_FILEFORMAT; 
 		return lasterror;
 	}
+
 	
 	if (ftype != FILETYPE_DATA) {
 		file_copy(tempfile, filename);
 		file_delete(tempfile);
 	}
+	*/
 	
 	return result;
 }
@@ -7295,13 +7326,13 @@ GIMAGE_ERROR gImage::saveImageFileNoProfile(const char * filename, std::string p
 	GIMAGE_ERROR result;
 
 	if (ftype == FILETYPE_TIFF) {
-		result = saveTIFF(tempfile.c_str(), bitfmt, params);
+		result = saveTIFF(filename, bitfmt, params);
 	}
 	if (ftype == FILETYPE_JPEG) {
-		result = saveJPEG(tempfile.c_str(), bitfmt, params);
+		result = saveJPEG(filename, bitfmt, params);
 	}
 	if (ftype == FILETYPE_PNG) {
-		result = savePNG(tempfile.c_str(), bitfmt, params);
+		result = savePNG(filename, bitfmt, params);
 	}
 	
 	bool excludeexif = false;
@@ -7312,6 +7343,7 @@ GIMAGE_ERROR gImage::saveImageFileNoProfile(const char * filename, std::string p
 	//don't include a profile if there was none either in the gImage class or specified for output transform:
 	if (profile == NULL & this->profile == NULL) excludeicc = true;
 	
+	/*
 	if (result == GIMAGE_OK) { 
 		if (excludeexif & excludeicc) //neither
 			result = insertMetadata(tempfile, NULL, true);
@@ -7331,6 +7363,7 @@ GIMAGE_ERROR gImage::saveImageFileNoProfile(const char * filename, std::string p
 		file_copy(tempfile, filename);
 		file_delete(tempfile);
 	}
+	*/
 	
 	return result;
 }
